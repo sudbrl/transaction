@@ -7,25 +7,29 @@ import streamlit_authenticator as stauth
 # User authentication setup
 # ------------------------
 
-# Replace these hashed passwords with your own generated hashes
-# To generate hashes run:
+# Example hashed password generated using streamlit_authenticator Hasher
+# To generate your own, run the snippet below once locally:
+#
 # import streamlit_authenticator as stauth
 # print(stauth.Hasher(['your_password']).generate())
+#
+# Then copy the output here.
+
 hashed_passwords = [
-    '$2b$12$zLIE1cV9wkMD61XsgO5Li.TEKXDbcYEpGJ/PywAiDGk7ejlhpz9h2','$2b$12$oftUlZ2Or20iPs0POBVu3OEgj4epyeqAsCmOq1R2sveuWbo83t3ZS'
+    'sha256$e3fa2d01db30f52b60e6c8b96038a8c836b49ee6bfe4bfb7cfaf3a8c5e9ac7e0'
 ]
 
 credentials = {
     "usernames": {
         "alice": {"name": "Alice", "password": hashed_passwords[0]}
-        # Add more users here if needed
+        # Add more users here as needed
     }
 }
 
 authenticator = stauth.Authenticate(
     credentials,
     cookie_name="account_statement_cookie",
-    key="random_signature_key",  # Change this to a strong random key
+    key="random_signature_key_123",  # Change this to a strong secret key
     cookie_expiry_days=1
 )
 
@@ -38,7 +42,6 @@ if authentication_status:
     # Your existing app code
     # ------------------------
 
-    # Function to categorize text
     def categorize(text):
         text = str(text).strip().lower()
 
