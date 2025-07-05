@@ -12,7 +12,7 @@ import streamlit_authenticator as stauth
 # import streamlit_authenticator as stauth
 # print(stauth.Hasher(['your_password']).generate())
 hashed_passwords = [
-    'sha256$e3fa2d01db30f52b60e6c8b96038a8c836b49ee6bfe4bfb7cfaf3a8c5e9ac7e0'
+    '$2b$12$zLIE1cV9wkMD61XsgO5Li.TEKXDbcYEpGJ/PywAiDGk7ejlhpz9h2','$2b$12$oftUlZ2Or20iPs0POBVu3OEgj4epyeqAsCmOq1R2sveuWbo83t3ZS'
 ]
 
 credentials = {
