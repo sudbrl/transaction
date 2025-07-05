@@ -44,7 +44,7 @@ def categorize(text):
         return "Esewa Transfer"
     elif "mob" in text:
         return "Mobile Banking transfer"
-         elif "qr" in text:
+    elif "qr" in text:
         return "qr deposit"
     else:
         return "Not Classified"
