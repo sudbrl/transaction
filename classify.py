@@ -72,15 +72,24 @@ if uploaded_file:
     df = df.drop(columns=[col for col in cols_to_remove if col in df.columns])
 
     # Remove summary rows
+    if 'Desc1' not in df.columns:
+        st.error("❌ 'Desc1' column not found in the Excel file.")
+        st.stop()
+
     df = df[df['Desc1'] != "~Date summary"]
 
-    # Combine relevant columns for categorization
+    # Ensure required columns exist
+    for col in ["Desc1", "Desc2", "Desc3", "Tran Id"]:
+        if col not in df.columns:
+            df[col] = ""
+
+    # Clean and combine text for classification
     df["CombinedCol"] = (
-        df["Desc1"].fillna('') + ' ' +
-        df["Desc2"].fillna('') + ' ' +
-        df["Desc3"].fillna('') + ' ' +
-        df["Tran Id"].fillna('')
-    ).str.lower().str.strip()
+        df["Desc1"].fillna('').astype(str).str.strip().str.lower() + ' ' +
+        df["Desc2"].fillna('').astype(str).str.strip().str.lower() + ' ' +
+        df["Desc3"].fillna('').astype(str).str.strip().str.lower() + ' ' +
+        df["Tran Id"].fillna('').astype(str).str.strip().str.lower()
+    )
 
     # Apply categorization
     df["Category"] = df["CombinedCol"].apply(categorize)
@@ -96,7 +105,7 @@ if uploaded_file:
 
     # Success message and preview
     st.success("✅ File processed successfully!")
-    st.dataframe(final_df.head())
+    st.dataframe(final_df.head(), use_container_width=True)
 
     # Download button
     st.download_button(
