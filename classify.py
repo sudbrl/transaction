@@ -10,17 +10,27 @@ def categorize(text):
         return "Loan Disburse"
     elif any(x in text for x in ["rtgs", "rtg"]):
         return "RTGS Transfer"
-    elif any(x in text for x in ["fee", "charge"]):
+    elif "cic" in text:
+        return "CIC Charge"
+    elif "valuation" in text:
+        return "valuation Charge"
+    elif "insurance" in text:
+        return "Insurance Charges"
+    elif any(x in text for x in ["mgmt", "management", "service", "1%", "0.25%"]):
+        return "Management and service charge"
+    elif text.startswith("te") or text.startswith("t/e"):
+        return "T/E Charge"
+    elif any(x in text for x in ["fee", "charge", "iw clg chq rtn chg", "express chrg"]):
         return "Fee & Charges"
     elif "settle" in text:
         return "Loan Settlement"
-    elif "inc:ecc" in text:
+    elif any(x in text for x in ["inc:ecc", "ow clg chq", "inward ecc chq", "owchq"]):
         return "Cheque-Other Bank"
     elif "home" in text:
         return "Cheque-Internal"
     elif "fpay" in text:
         return "Phonepay transfer"
-    elif "cash" in text:
+    elif "cash" in text or "dep by" in text:
         return "Cash Deposit"
     elif any(x in text for x in ["rebate", "discount"]):
         return "Discount & Rebate"
@@ -30,10 +40,6 @@ def categorize(text):
         return "Interest Deduction"
     elif text.startswith("balnxfr"):
         return "Principal Repayment"
-    elif "cic" in text:
-        return "CIC Charge"
-    elif "insurance" in text or "ins" in text:
-        return "Insurance Charges"
     elif any(x in text for x in ["trf", "from", "tran"]):
         return "Internal Transfer"
     elif any(x in text for x in ["accountft", "ips"]):
@@ -45,20 +51,20 @@ def categorize(text):
     elif "mob" in text:
         return "Mobile Banking transfer"
     elif "qr" in text:
-        return "qr deposit"
+        return "QR Deposit"
     else:
         return "Not Classified"
 
-# Streamlit app
-st.title("Account Statement Categorizer")
+# Streamlit App
+st.title("📊 Account Statement Categorizer")
 
-uploaded_file = st.file_uploader("Upload 'ACCOUNT STATEMENT.xlsx'", type=["xlsx"])
+uploaded_file = st.file_uploader("📁 Upload 'ACCOUNT STATEMENT.xlsx'", type=["xlsx"])
 
 if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file, sheet_name="ACCOUNT STATEMENT")
     except Exception as e:
-        st.error(f"Failed to read Excel file: {e}")
+        st.error(f"❌ Failed to read Excel file: {e}")
         st.stop()
 
     # Remove unnecessary columns if they exist
@@ -68,7 +74,7 @@ if uploaded_file:
     # Remove summary rows
     df = df[df['Desc1'] != "~Date summary"]
 
-    # Combine relevant columns
+    # Combine relevant columns for categorization
     df["CombinedCol"] = (
         df["Desc1"].fillna('') + ' ' +
         df["Desc2"].fillna('') + ' ' +
@@ -86,9 +92,13 @@ if uploaded_file:
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         final_df.to_excel(writer, index=False, sheet_name='Categorized')
+    output.seek(0)
 
-    st.success("✅ File processed and ready to download")
+    # Success message and preview
+    st.success("✅ File processed successfully!")
+    st.dataframe(final_df.head())
 
+    # Download button
     st.download_button(
         label="📥 Download Categorized Excel File",
         data=output.getvalue(),
