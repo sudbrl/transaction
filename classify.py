@@ -22,7 +22,7 @@ if not st.session_state.authenticated:
     if submitted:
         if verify_login(username, password):
             st.session_state.authenticated = True
-            st.experimental_rerun()
+            st.rerun()  # Use st.rerun() instead of deprecated experimental_rerun
         else:
             st.error("❌ Invalid username or password")
     st.stop()
