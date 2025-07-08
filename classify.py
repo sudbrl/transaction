@@ -2,10 +2,34 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 
-# Function to categorize text
+# ----------- Secure Authentication using st.secrets -----------
+def verify_login(username, password):
+    stored_password = st.secrets["auth"].get(username)
+    return stored_password == password
+
+# ----------- Session State for Login -----------
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.title("🔐 Login Required")
+
+    with st.form("login_form", clear_on_submit=True):
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Login")
+
+    if submitted:
+        if verify_login(username, password):
+            st.session_state.authenticated = True
+            st.experimental_rerun()
+        else:
+            st.error("❌ Invalid username or password")
+    st.stop()
+
+# ----------- Categorization Logic -----------
 def categorize(text):
     text = str(text).strip().lower()
-
     if "disburse" in text:
         return "Loan Disburse"
     elif any(x in text for x in ["rtgs", "rtg"]):
@@ -55,7 +79,7 @@ def categorize(text):
     else:
         return "Not Classified"
 
-# Streamlit App
+# ----------- App UI -----------
 st.title("📊 Account Statement Categorizer")
 
 uploaded_file = st.file_uploader("📁 Upload 'ACCOUNT STATEMENT.xlsx'", type=["xlsx"])
@@ -71,23 +95,20 @@ if uploaded_file:
         st.error("❌ Unable to read the uploaded Excel file. Please check the format.")
         st.stop()
 
-    # Remove unnecessary columns if they exist
+    # Drop irrelevant columns
     cols_to_remove = ["Branch Code", "Time Stamp", "Balance"]
     df = df.drop(columns=[col for col in cols_to_remove if col in df.columns])
 
-    # Remove summary rows
     if 'Desc1' not in df.columns:
         st.error("❌ 'Desc1' column not found in the Excel file.")
         st.stop()
 
     df = df[df['Desc1'] != "~Date summary"]
 
-    # Ensure required columns exist
     for col in ["Desc1", "Desc2", "Desc3", "Tran Id"]:
         if col not in df.columns:
             df[col] = ""
 
-    # Clean and combine text for classification
     df["CombinedCol"] = (
         df["Desc1"].fillna('').astype(str).str.strip().str.lower() + ' ' +
         df["Desc2"].fillna('').astype(str).str.strip().str.lower() + ' ' +
@@ -95,25 +116,20 @@ if uploaded_file:
         df["Tran Id"].fillna('').astype(str).str.strip().str.lower()
     )
 
-    # Apply categorization
     df["Category"] = df["CombinedCol"].apply(categorize)
 
-    # Mask Tran Id for privacy
+    # Mask sensitive 'Tran Id'
     df["Tran Id"] = df["Tran Id"].apply(lambda x: "****" + str(x)[-4:] if pd.notna(x) and len(str(x)) >= 4 else "****")
 
-    # Drop the combined column before output
     final_df = df.drop(columns=["CombinedCol"])
 
-    # Convert to Excel in memory
+    # Convert to Excel for download
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         final_df.to_excel(writer, index=False, sheet_name='Categorized')
     output.seek(0)
 
-    # Success message
     st.success("✅ File processed successfully!")
-
-    # Download button
     st.download_button(
         label="📥 Download Categorized Excel File",
         data=output.getvalue(),
