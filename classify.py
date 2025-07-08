@@ -12,8 +12,8 @@ def hash_password(password):
 # print(hash_password("your_password"))
 
 USERS = {
-    "admin": "6e0daa0a792dcaef24738984267b05c5153663f16fa31a96325ab2fc1ca713b8",
-    "user1": "ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f",
+    "admin": "4c69744ac9a47ef87e18b170400f3490f165d68932580a630d994b94f203c898",
+    "user1": "a5ec681f50fc07a4bca73882e832d2e101fbc3d7a3df0bc60c961fd5e1a81d0d",
 }
 
 def verify_login(username, password):
