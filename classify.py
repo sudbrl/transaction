@@ -28,7 +28,13 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ----------- Logout Option -----------
-st.sidebar.button("🚪 Logout", on_click=lambda: st.session_state.update({"authenticated": False}) or st.rerun())
+def logout():
+    st.session_state.authenticated = False
+
+st.sidebar.button("🚪 Logout", on_click=logout)
+
+if not st.session_state.authenticated:
+    st.experimental_rerun()
 
 # ----------- Categorization Logic -----------
 def categorize(text):
