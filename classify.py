@@ -1,48 +1,139 @@
 import streamlit as st
+import pandas as pd
+from io import BytesIO
 import hashlib
-import hmac
 
+# ----------- Hash-based Authentication -----------
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Expected hashes
-USERS = {
-    "admin": "4c69744ac9a47ef87e18b170400f3490f165d68932580a630d994b94f203c898",  # securepass123
-    "user1": "a5ec681f50fc07a4bca73882e832d2e101fbc3d7a3df0bc60c961fd5e1a81d0d",  # anotherpass456
-}
-
 def verify_login(username, password):
-    hashed_input = hash_password(password)
-    stored_hash = USERS.get(username)
-    return stored_hash and hmac.compare_digest(hashed_input, stored_hash)
+    stored_hash = st.secrets["auth"].get(username)
+    return stored_hash == hash_password(password)
 
-# Start session
+# ----------- Session Management -----------
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
-    st.session_state.username = ""
 
 if not st.session_state.authenticated:
-    st.title("🔐 Login")
-
-    with st.form("login_form"):
+    st.title("🔐 Login Required")
+    with st.form("login_form", clear_on_submit=True):
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
-        login_button = st.form_submit_button("Login")
-
-        if login_button:
-            if verify_login(username.strip(), password.strip()):
-                st.session_state.authenticated = True
-                st.session_state.username = username
-                st.success("✅ Login successful!")
-                st.experimental_rerun()
-            else:
-                st.error("❌ Invalid username or password")
-
+        submitted = st.form_submit_button("Login")
+    if submitted:
+        if verify_login(username, password):
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("❌ Invalid username or password")
     st.stop()
 
-st.sidebar.success(f"✅ Logged in as: {st.session_state.username}")
-if st.sidebar.button("🚪 Logout"):
-    st.session_state.authenticated = False
-    st.experimental_rerun()
+# ----------- Logout Option -----------
+st.sidebar.button("🚪 Logout", on_click=lambda: st.session_state.update({"authenticated": False}) or st.rerun())
 
-st.title("🎉 You're In!")
+# ----------- Categorization Logic -----------
+def categorize(text):
+    text = str(text).strip().lower()
+    if "disburse" in text:
+        return "Loan Disburse"
+    elif any(x in text for x in ["rtgs", "rtg"]):
+        return "RTGS Transfer"
+    elif "cic" in text:
+        return "CIC Charge"
+    elif "valuation" in text:
+        return "Valuation Charge"
+    elif "insurance" in text:
+        return "Insurance Charges"
+    elif any(x in text for x in ["mgmt", "management", "service", "1%", "0.25%"]):
+        return "Management and Service Charge"
+    elif text.startswith("te") or text.startswith("t/e"):
+        return "T/E Charge"
+    elif any(x in text for x in ["fee", "charge", "iw clg chq rtn chg", "express chrg"]):
+        return "Fee & Charges"
+    elif "settle" in text:
+        return "Loan Settlement"
+    elif any(x in text for x in ["inc:ecc", "ow clg chq", "inward ecc chq", "owchq"]):
+        return "Cheque - Other Bank"
+    elif "home" in text:
+        return "Cheque - Internal"
+    elif "fpay" in text:
+        return "PhonePay Transfer"
+    elif "cash" in text or "dep by" in text:
+        return "Cash Deposit"
+    elif any(x in text for x in ["rebate", "discount"]):
+        return "Discount & Rebate"
+    elif "penal" in text:
+        return "Penal Deduction"
+    elif text.startswith("int to "):
+        return "Interest Deduction"
+    elif text.startswith("balnxfr"):
+        return "Principal Repayment"
+    elif any(x in text for x in ["trf", "from", "tran"]):
+        return "Internal Transfer"
+    elif any(x in text for x in ["accountft", "ips"]):
+        return "IPS Transfer"
+    elif "repay" in text:
+        return "Repayment"
+    elif "esewa" in text:
+        return "Esewa Transfer"
+    elif "mob" in text:
+        return "Mobile Banking Transfer"
+    elif "qr" in text:
+        return "QR Deposit"
+    else:
+        return "Not Classified"
+
+# ----------- Main App UI -----------
+st.title("📊 Account Statement Categorizer")
+
+uploaded_file = st.file_uploader("📁 Upload your 'ACCOUNT STATEMENT.xlsx'", type=["xlsx"])
+
+if uploaded_file:
+    if uploaded_file.name.strip().lower() != "account statement.xlsx":
+        st.warning("⚠️ Please upload the file named exactly 'ACCOUNT STATEMENT.xlsx'")
+        st.stop()
+
+    try:
+        df = pd.read_excel(uploaded_file, sheet_name="ACCOUNT STATEMENT")
+    except Exception as e:
+        st.error(f"❌ Unable to read the Excel file: {e}")
+        st.stop()
+
+    # Remove irrelevant columns
+    df.drop(columns=[col for col in ["Branch Code", "Time Stamp", "Balance"] if col in df.columns], inplace=True)
+
+    if "Desc1" not in df.columns:
+        st.error("❌ 'Desc1' column not found.")
+        st.stop()
+
+    df = df[df["Desc1"] != "~Date summary"]
+
+    # Ensure columns exist
+    for col in ["Desc1", "Desc2", "Desc3", "Tran Id"]:
+        if col not in df.columns:
+            df[col] = ""
+
+    df["CombinedCol"] = (
+        df["Desc1"].fillna("").astype(str).str.strip().str.lower() + " " +
+        df["Desc2"].fillna("").astype(str).str.strip().str.lower() + " " +
+        df["Desc3"].fillna("").astype(str).str.strip().str.lower() + " " +
+        df["Tran Id"].fillna("").astype(str).str.strip().str.lower()
+    )
+
+    df["Category"] = df["CombinedCol"].apply(categorize)
+
+    final_df = df.drop(columns=["CombinedCol"])
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        final_df.to_excel(writer, index=False, sheet_name="Categorized")
+    output.seek(0)
+
+    st.success("✅ File processed successfully!")
+    st.download_button(
+        label="📥 Download Categorized Excel File",
+        data=output.getvalue(),
+        file_name="categorized_account_statement.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
