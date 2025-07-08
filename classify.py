@@ -1,31 +1,36 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+import hashlib
 
-# ----------- Secure Authentication using st.secrets -----------
+# ----------- Hash-based Authentication -----------
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
 def verify_login(username, password):
-    stored_password = st.secrets["auth"].get(username)
-    return stored_password == password
+    stored_hash = st.secrets["auth"].get(username)
+    return stored_hash == hash_password(password)
 
-# ----------- Session State for Login -----------
+# ----------- Session Management -----------
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
     st.title("🔐 Login Required")
-
     with st.form("login_form", clear_on_submit=True):
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Login")
-
     if submitted:
         if verify_login(username, password):
             st.session_state.authenticated = True
-            st.rerun()  # Use st.rerun() instead of deprecated experimental_rerun
+            st.rerun()
         else:
             st.error("❌ Invalid username or password")
     st.stop()
+
+# ----------- Logout Option -----------
+st.sidebar.button("🚪 Logout", on_click=lambda: st.session_state.update({"authenticated": False}) or st.rerun())
 
 # ----------- Categorization Logic -----------
 def categorize(text):
@@ -37,11 +42,11 @@ def categorize(text):
     elif "cic" in text:
         return "CIC Charge"
     elif "valuation" in text:
-        return "valuation Charge"
+        return "Valuation Charge"
     elif "insurance" in text:
         return "Insurance Charges"
     elif any(x in text for x in ["mgmt", "management", "service", "1%", "0.25%"]):
-        return "Management and service charge"
+        return "Management and Service Charge"
     elif text.startswith("te") or text.startswith("t/e"):
         return "T/E Charge"
     elif any(x in text for x in ["fee", "charge", "iw clg chq rtn chg", "express chrg"]):
@@ -49,11 +54,11 @@ def categorize(text):
     elif "settle" in text:
         return "Loan Settlement"
     elif any(x in text for x in ["inc:ecc", "ow clg chq", "inward ecc chq", "owchq"]):
-        return "Cheque-Other Bank"
+        return "Cheque - Other Bank"
     elif "home" in text:
-        return "Cheque-Internal"
+        return "Cheque - Internal"
     elif "fpay" in text:
-        return "Phonepay transfer"
+        return "PhonePay Transfer"
     elif "cash" in text or "dep by" in text:
         return "Cash Deposit"
     elif any(x in text for x in ["rebate", "discount"]):
@@ -73,60 +78,56 @@ def categorize(text):
     elif "esewa" in text:
         return "Esewa Transfer"
     elif "mob" in text:
-        return "Mobile Banking transfer"
+        return "Mobile Banking Transfer"
     elif "qr" in text:
         return "QR Deposit"
     else:
         return "Not Classified"
 
-# ----------- App UI -----------
+# ----------- Main App UI -----------
 st.title("📊 Account Statement Categorizer")
 
-uploaded_file = st.file_uploader("📁 Upload 'ACCOUNT STATEMENT.xlsx'", type=["xlsx"])
+uploaded_file = st.file_uploader("📁 Upload your 'ACCOUNT STATEMENT.xlsx'", type=["xlsx"])
 
 if uploaded_file:
-    if uploaded_file.name != "ACCOUNT STATEMENT.xlsx":
-        st.warning("⚠️ Please upload the file named 'ACCOUNT STATEMENT.xlsx'")
+    if uploaded_file.name.strip().lower() != "account statement.xlsx":
+        st.warning("⚠️ Please upload the file named exactly 'ACCOUNT STATEMENT.xlsx'")
         st.stop()
 
     try:
         df = pd.read_excel(uploaded_file, sheet_name="ACCOUNT STATEMENT")
-    except Exception:
-        st.error("❌ Unable to read the uploaded Excel file. Please check the format.")
+    except Exception as e:
+        st.error(f"❌ Unable to read the Excel file: {e}")
         st.stop()
 
-    # Drop irrelevant columns
-    cols_to_remove = ["Branch Code", "Time Stamp", "Balance"]
-    df = df.drop(columns=[col for col in cols_to_remove if col in df.columns])
+    # Remove irrelevant columns
+    df.drop(columns=[col for col in ["Branch Code", "Time Stamp", "Balance"] if col in df.columns], inplace=True)
 
-    if 'Desc1' not in df.columns:
-        st.error("❌ 'Desc1' column not found in the Excel file.")
+    if "Desc1" not in df.columns:
+        st.error("❌ 'Desc1' column not found.")
         st.stop()
 
-    df = df[df['Desc1'] != "~Date summary"]
+    df = df[df["Desc1"] != "~Date summary"]
 
+    # Ensure columns exist
     for col in ["Desc1", "Desc2", "Desc3", "Tran Id"]:
         if col not in df.columns:
             df[col] = ""
 
     df["CombinedCol"] = (
-        df["Desc1"].fillna('').astype(str).str.strip().str.lower() + ' ' +
-        df["Desc2"].fillna('').astype(str).str.strip().str.lower() + ' ' +
-        df["Desc3"].fillna('').astype(str).str.strip().str.lower() + ' ' +
-        df["Tran Id"].fillna('').astype(str).str.strip().str.lower()
+        df["Desc1"].fillna("").astype(str).str.strip().str.lower() + " " +
+        df["Desc2"].fillna("").astype(str).str.strip().str.lower() + " " +
+        df["Desc3"].fillna("").astype(str).str.strip().str.lower() + " " +
+        df["Tran Id"].fillna("").astype(str).str.strip().str.lower()
     )
 
     df["Category"] = df["CombinedCol"].apply(categorize)
 
-    # Mask sensitive 'Tran Id'
-    df["Tran Id"] = df["Tran Id"].apply(lambda x: "****" + str(x)[-4:] if pd.notna(x) and len(str(x)) >= 4 else "****")
-
     final_df = df.drop(columns=["CombinedCol"])
 
-    # Convert to Excel for download
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        final_df.to_excel(writer, index=False, sheet_name='Categorized')
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        final_df.to_excel(writer, index=False, sheet_name="Categorized")
     output.seek(0)
 
     st.success("✅ File processed successfully!")
