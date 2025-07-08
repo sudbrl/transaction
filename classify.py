@@ -2,19 +2,6 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 
-# ----------- Hide Streamlit header menu (GitHub icon) and footer -----------
-st.set_page_config(page_title="Account Statement Categorizer", page_icon="📊")
-
-hide_streamlit_style = """
-    <style>
-    /* Hide the top-right menu (GitHub/share icon) */
-    header > div:nth-child(1) {visibility: hidden;}
-    /* Hide the footer 'Made with Streamlit' */
-    footer {visibility: hidden;}
-    </style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
 # ----------- Secure Authentication using st.secrets -----------
 def verify_login(username, password):
     stored_password = st.secrets["auth"].get(username)
@@ -35,7 +22,7 @@ if not st.session_state.authenticated:
     if submitted:
         if verify_login(username, password):
             st.session_state.authenticated = True
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("❌ Invalid username or password")
     st.stop()
