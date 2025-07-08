@@ -2,14 +2,25 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 import hashlib
+import hmac
 
-# ----------- Hash-based Authentication -----------
+# ----------- Hardcoded User Hashes -----------
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
+# Use this function separately to generate hashes:
+# print(hash_password("your_password"))
+
+USERS = {
+    "admin": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",  # admin123
+    "user1": "ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f",  # testpass
+}
+
 def verify_login(username, password):
-    stored_hash = st.secrets["auth"].get(username)
-    return stored_hash == hash_password(password)
+    stored_hash = USERS.get(username)
+    if not stored_hash:
+        return False
+    return hmac.compare_digest(stored_hash, hash_password(password))
 
 # ----------- Session Management -----------
 if "authenticated" not in st.session_state:
@@ -24,6 +35,7 @@ if not st.session_state.authenticated:
     if submitted:
         if verify_login(username, password):
             st.session_state.authenticated = True
+            st.success("✅ Login successful. Please wait...")
             st.rerun()
         else:
             st.error("❌ Invalid username or password")
