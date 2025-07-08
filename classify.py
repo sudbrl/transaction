@@ -61,10 +61,14 @@ st.title("📊 Account Statement Categorizer")
 uploaded_file = st.file_uploader("📁 Upload 'ACCOUNT STATEMENT.xlsx'", type=["xlsx"])
 
 if uploaded_file:
+    if uploaded_file.name != "ACCOUNT STATEMENT.xlsx":
+        st.warning("⚠️ Please upload the file named 'ACCOUNT STATEMENT.xlsx'")
+        st.stop()
+
     try:
         df = pd.read_excel(uploaded_file, sheet_name="ACCOUNT STATEMENT")
-    except Exception as e:
-        st.error(f"❌ Failed to read Excel file: {e}")
+    except Exception:
+        st.error("❌ Unable to read the uploaded Excel file. Please check the format.")
         st.stop()
 
     # Remove unnecessary columns if they exist
@@ -94,6 +98,9 @@ if uploaded_file:
     # Apply categorization
     df["Category"] = df["CombinedCol"].apply(categorize)
 
+    # Mask Tran Id for privacy
+    df["Tran Id"] = df["Tran Id"].apply(lambda x: "****" + str(x)[-4:] if pd.notna(x) and len(str(x)) >= 4 else "****")
+
     # Drop the combined column before output
     final_df = df.drop(columns=["CombinedCol"])
 
@@ -103,9 +110,8 @@ if uploaded_file:
         final_df.to_excel(writer, index=False, sheet_name='Categorized')
     output.seek(0)
 
-    # Success message and preview
+    # Success message
     st.success("✅ File processed successfully!")
-    st.dataframe(final_df.head(), use_container_width=True)
 
     # Download button
     st.download_button(
