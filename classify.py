@@ -1,6 +1,11 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+st.set_page_config(page_title="Your App Title", page_icon="📊", initial_sidebar_state="auto", menu_items={
+    'Get Help': None,
+    'Report a bug': None,
+    'About': None
+})
 
 # ----------- Secure Authentication using st.secrets -----------
 def verify_login(username, password):
