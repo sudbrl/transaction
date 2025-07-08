@@ -1,26 +1,24 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
-import hashlib
 
-# ----------- Hash-based Authentication -----------
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
+# ----------- Secure Authentication using st.secrets -----------
 def verify_login(username, password):
-    stored_hash = st.secrets["auth"].get(username)
-    return stored_hash == hash_password(password)
+    stored_password = st.secrets["auth"].get(username)
+    return stored_password == password
 
-# ----------- Session Management -----------
+# ----------- Session State for Login -----------
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
     st.title("🔐 Login Required")
+
     with st.form("login_form", clear_on_submit=True):
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Login")
+
     if submitted:
         if verify_login(username, password):
             st.session_state.authenticated = True
@@ -84,14 +82,21 @@ def categorize(text):
     else:
         return "Not Classified"
 
-# ----------- Main App UI -----------
+# ----------- App UI -----------
 st.title("📊 Account Statement Categorizer")
+
+st.markdown("""
+### 📋 Instructions:
+- File must be named: **ACCOUNT STATEMENT.xlsx**
+- Must contain a sheet named **ACCOUNT STATEMENT**
+- Must include a column named **Desc1**
+""")
 
 uploaded_file = st.file_uploader("📁 Upload your 'ACCOUNT STATEMENT.xlsx'", type=["xlsx"])
 
 if uploaded_file:
     if uploaded_file.name.strip().lower() != "account statement.xlsx":
-        st.warning("⚠️ Please upload the file named exactly 'ACCOUNT STATEMENT.xlsx'")
+        st.warning("⚠️ Please upload the file exactly named 'ACCOUNT STATEMENT.xlsx'")
         st.stop()
 
     try:
@@ -100,34 +105,36 @@ if uploaded_file:
         st.error(f"❌ Unable to read the Excel file: {e}")
         st.stop()
 
-    # Remove irrelevant columns
-    df.drop(columns=[col for col in ["Branch Code", "Time Stamp", "Balance"] if col in df.columns], inplace=True)
+    # Drop irrelevant columns
+    cols_to_remove = ["Branch Code", "Time Stamp", "Balance"]
+    df = df.drop(columns=[col for col in cols_to_remove if col in df.columns])
 
     if "Desc1" not in df.columns:
-        st.error("❌ 'Desc1' column not found.")
+        st.error("❌ 'Desc1' column not found in the uploaded Excel file.")
         st.stop()
 
-    df = df[df["Desc1"] != "~Date summary"]
+    df = df[df['Desc1'] != "~Date summary"]
 
-    # Ensure columns exist
+    # Ensure required columns exist
     for col in ["Desc1", "Desc2", "Desc3", "Tran Id"]:
         if col not in df.columns:
             df[col] = ""
 
+    # Combine for categorization
     df["CombinedCol"] = (
-        df["Desc1"].fillna("").astype(str).str.strip().str.lower() + " " +
-        df["Desc2"].fillna("").astype(str).str.strip().str.lower() + " " +
-        df["Desc3"].fillna("").astype(str).str.strip().str.lower() + " " +
-        df["Tran Id"].fillna("").astype(str).str.strip().str.lower()
+        df["Desc1"].fillna('').astype(str).str.strip().str.lower() + ' ' +
+        df["Desc2"].fillna('').astype(str).str.strip().str.lower() + ' ' +
+        df["Desc3"].fillna('').astype(str).str.strip().str.lower() + ' ' +
+        df["Tran Id"].fillna('').astype(str).str.strip().str.lower()
     )
 
     df["Category"] = df["CombinedCol"].apply(categorize)
-
     final_df = df.drop(columns=["CombinedCol"])
 
+    # In-memory Excel
     output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        final_df.to_excel(writer, index=False, sheet_name="Categorized")
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        final_df.to_excel(writer, index=False, sheet_name='Categorized')
     output.seek(0)
 
     st.success("✅ File processed successfully!")
