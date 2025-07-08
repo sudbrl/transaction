@@ -6,6 +6,14 @@ st.set_page_config(page_title="Your App Title", page_icon="📊", initial_sideba
     'Report a bug': None,
     'About': None
 })
+# --- Hide Streamlit UI components ---
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+""", unsafe_allow_html=True)
 
 # ----------- Secure Authentication using st.secrets -----------
 def verify_login(username, password):
