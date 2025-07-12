@@ -7,7 +7,7 @@ from io import BytesIO
 import os
 import tempfile
 
-# Correct page config with valid menu_items keys
+# Correct page config with only valid menu_items keys
 st.set_page_config(
     page_title="Transaction Categorizer",
     page_icon="📊",
@@ -15,8 +15,7 @@ st.set_page_config(
     menu_items={
         'Get Help': None,
         'Report a bug': None,
-        'About': None,
-        'Configure': None  # Correct key to disable "Manage app"
+        'About': None
     }
 )
 
@@ -118,10 +117,10 @@ def calculate_common_actype_desc(sheets_1, sheets_2, writer):
                 combined_df['Percent Change'] = ((combined_df['Change'] / combined_df['Previous Balance Sum'].replace({0: pd.NA})) * 100).fillna(0).map('{:.2f}%'.format)
                 total_row = pd.DataFrame(combined_df.sum()).transpose()
                 total_row.index = ['Total']
-                total_prev_balance = total_row.at['Total', 'Previous Balance Sum']
-                total_new_balance = total_row.at['Total', 'New Balance Sum']
-                overall_percent_change = (total_new_balance - total_prev_balance) / total_prev_balance * 100 if total_prev_balance != 0 else 0
-                total_row.at['Total', 'Percent Change'] = '{:.2f}%'.format(overall_percent_change)
+                total_row.at['Total', 'Percent Change'] = '{:.2f}%'.format(
+                    ((total_row['New Balance Sum'] - total_row['Previous Balance Sum']) / total_row['Previous Balance Sum']).values[0]
+                    if total_row['Previous Balance Sum'].values[0] != 0 else 0
+                )
                 combined_df = pd.concat([combined_df, total_row])
 
     if common_actype_present:
@@ -155,10 +154,10 @@ def calculate_common_branch_name(sheets_1, sheets_2, writer):
                 combined_df['Percent Change'] = ((combined_df['Change'] / combined_df['Previous Balance Sum'].replace({0: pd.NA})) * 100).fillna(0).map('{:.2f}%'.format)
                 total_row = pd.DataFrame(combined_df.sum()).transpose()
                 total_row.index = ['Total']
-                total_prev_balance = total_row.at['Total', 'Previous Balance Sum']
-                total_new_balance = total_row.at['Total', 'New Balance Sum']
-                overall_percent_change = (total_new_balance - total_prev_balance) / total_prev_balance * 100 if total_prev_balance != 0 else 0
-                total_row.at['Total', 'Percent Change'] = '{:.2f}%'.format(overall_percent_change)
+                total_row.at['Total', 'Percent Change'] = '{:.2f}%'.format(
+                    ((total_row['New Balance Sum'] - total_row['Previous Balance Sum']) / total_row['Previous Balance Sum']).values[0]
+                    if total_row['Previous Balance Sum'].values[0] != 0 else 0
+                )
                 combined_df = pd.concat([combined_df, total_row])
 
     if common_branch_present:
@@ -172,6 +171,7 @@ def calculate_common_branch_name(sheets_1, sheets_2, writer):
                 cell.number_format = '0.00'
     return common_branch_present
 
+# --- Login Page ---
 def login_page():
     st.markdown("""
         <style>
@@ -223,15 +223,12 @@ def app_page():
         if st.button("Start Processing"):
             with st.spinner("Processing... Please wait."):
                 try:
-                    # Create temporary files for processing
                     with tempfile.NamedTemporaryFile(delete=True, suffix='.xlsx') as tmp_prev, \
                          tempfile.NamedTemporaryFile(delete=True, suffix='.xlsx') as tmp_curr:
-                        
-                        # Write uploaded content to temp files
+
                         tmp_prev.write(previous_file.getvalue())
                         tmp_curr.write(current_file.getvalue())
-                        
-                        # Process files
+
                         previous_wb = load_workbook(tmp_prev.name)
                         current_wb = load_workbook(tmp_curr.name)
 
@@ -262,7 +259,6 @@ def app_page():
                 except Exception as e:
                     st.error(f"An error occurred during processing: {e}")
                 finally:
-                    # Clear memory
                     if 'df_previous' in locals(): del df_previous
                     if 'df_this' in locals(): del df_this
                     if 'excel_sheets_1' in locals(): del excel_sheets_1
