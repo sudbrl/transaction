@@ -4,6 +4,8 @@ from io import BytesIO
 import tempfile
 import os
 
+import streamlit as st
+
 st.set_page_config(
     page_title="Transaction Categorizer", 
     page_icon="📊", 
@@ -11,7 +13,9 @@ st.set_page_config(
     menu_items={
         'Get Help': None,
         'Report a bug': None,
-        'About': None
+        'About': None,
+        # This disables the "Manage app" option
+        'Settings': None
     }
 )
 
