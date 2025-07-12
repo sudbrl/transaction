@@ -178,11 +178,7 @@ if uploaded_file:
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             final_df.to_excel(writer, index=False, sheet_name='Categorized')
         output.seek(0)
-        
-        # Show preview
-        st.subheader("Preview of Categorized Data")
-        st.dataframe(final_df.head())
-        
+               
         # Download button
         original_filename = os.path.splitext(uploaded_file.name)[0]
         download_filename = f"{original_filename}_categorized.xlsx"
