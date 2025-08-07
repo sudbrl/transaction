@@ -1,8 +1,40 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+import hashlib
+from concurrent.futures import ThreadPoolExecutor
 
-# Function to categorize text
+# --- Authentication using Streamlit Secrets (GitHub usernames/passwords) ---
+
+# Define a hashing function for password security
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def authenticate(username, password):
+    # Streamlit secrets should contain a 'users' dict with username: hashed_password
+    users = st.secrets.get("users", {})
+    return username in users and users[username] == hash_password(password)
+
+def login_block():
+    st.title("🔐 Login")
+    username = st.text_input("GitHub Username")
+    password = st.text_input("Password", type="password")
+    login_btn = st.button("Login")
+    if login_btn:
+        if authenticate(username, password):
+            st.session_state["logged_in"] = True
+            st.session_state["username"] = username
+            st.success("Login successful!")
+            st.experimental_rerun()
+        else:
+            st.error("Invalid username or password.")
+    st.stop()
+
+# -- Only show login if not logged in
+if not st.session_state.get("logged_in"):
+    login_block()
+
+# --- Category function (same as before) ---
 def categorize(text):
     text = str(text).strip().lower()
 
@@ -55,26 +87,37 @@ def categorize(text):
     else:
         return "Not Classified"
 
-# Streamlit App
-st.title("📊 Account Statement Categorizer")
+# --- Sidebar Dashboard ---
+st.sidebar.title("📊 Dashboard")
+st.sidebar.write(f"👤 Logged in as: {st.session_state['username']}")
 
-uploaded_file = st.file_uploader("📁 Upload 'ACCOUNT STATEMENT.xlsx'", type=["xlsx"])
+# Optionally, add a logout button
+if st.sidebar.button("Logout"):
+    st.session_state.clear()
+    st.experimental_rerun()
 
-if uploaded_file:
+# --- Main App: Multiple Upload & Parallel Processing ---
+
+st.title("📑 Multi-Account Statement Categorizer")
+
+uploaded_files = st.file_uploader(
+    "📁 Upload one or more 'ACCOUNT STATEMENT.xlsx' files", 
+    type=["xlsx"], 
+    accept_multiple_files=True
+)
+
+def process_file(uploaded_file):
     try:
         df = pd.read_excel(uploaded_file, sheet_name="ACCOUNT STATEMENT")
     except Exception as e:
-        st.error(f"❌ Failed to read Excel file: {e}")
-        st.stop()
+        return None, f"❌ Failed to read {uploaded_file.name}: {e}"
 
     # Remove unnecessary columns if they exist
     cols_to_remove = ["Branch Code", "Time Stamp", "Balance"]
     df = df.drop(columns=[col for col in cols_to_remove if col in df.columns])
 
-    # Remove summary rows
     if 'Desc1' not in df.columns:
-        st.error("❌ 'Desc1' column not found in the Excel file.")
-        st.stop()
+        return None, f"❌ 'Desc1' column not found in {uploaded_file.name}."
 
     df = df[df['Desc1'] != "~Date summary"]
 
@@ -103,14 +146,49 @@ if uploaded_file:
         final_df.to_excel(writer, index=False, sheet_name='Categorized')
     output.seek(0)
 
-    # Success message and preview
-    st.success("✅ File processed successfully!")
-    st.dataframe(final_df.head(), use_container_width=True)
+    return {
+        "df": final_df,
+        "excel": output.getvalue(),
+        "name": uploaded_file.name
+    }, None
 
-    # Download button
-    st.download_button(
-        label="📥 Download Categorized Excel File",
-        data=output.getvalue(),
-        file_name="categorized_account_statement.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+def process_files_parallel(uploaded_files):
+    results = []
+    errors = []
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(process_file, file) for file in uploaded_files]
+        for fut in futures:
+            result, error = fut.result()
+            if error:
+                errors.append(error)
+            else:
+                results.append(result)
+    return results, errors
+
+if uploaded_files:
+    with st.spinner("🔄 Processing files..."):
+        results, errors = process_files_parallel(uploaded_files)
+    if errors:
+        for error in errors:
+            st.error(error)
+    for result in results:
+        st.success(f"✅ {result['name']} processed successfully!")
+        with st.expander(f"Preview: {result['name']}", expanded=False):
+            st.dataframe(result["df"].head(), use_container_width=True)
+        st.download_button(
+            label=f"📥 Download {result['name'].replace('.xlsx', '')}_categorized.xlsx",
+            data=result["excel"],
+            file_name=f"{result['name'].replace('.xlsx', '')}_categorized.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+# --- Dashboard for Category Distribution Across All Uploaded Files ---
+if uploaded_files:
+    st.header("📈 Category Dashboard")
+    all_dfs = [r['df'] for r in results if r]
+    if all_dfs:
+        merged = pd.concat(all_dfs, ignore_index=True)
+        cat_counts = merged['Category'].value_counts().rename_axis('Category').reset_index(name='Count')
+        st.bar_chart(cat_counts.set_index("Category"))
+        with st.expander("Show category counts table"):
+            st.dataframe(cat_counts)
